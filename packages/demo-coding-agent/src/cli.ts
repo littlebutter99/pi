@@ -4,18 +4,40 @@
  * Only the provider registration differs from `index.ts`: everything above
  * `Models` (the agent loop, tools, events, safety gate) is provider-agnostic.
  *
- * The Anthropic provider is registered by importing the factory from
+ * The DeepSeek provider is registered by importing the factory from
  * `@earendil-works/pi-ai/providers/*` and calling it. Auth resolves
- * automatically from `ANTHROPIC_API_KEY` (or another configured source).
+ * automatically from `DEEPSEEK_API_KEY` (or another configured source).
  *
- * Run with: `ANTHROPIC_API_KEY=sk-ant-... npm run demo:real`
+ * Run with: `DEEPSEEK_API_KEY=sk-... npm run demo:real`
  */
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { createInterface, type Interface } from "node:readline";
+import { fileURLToPath } from "node:url";
 import { Agent } from "@earendil-works/pi-agent-core";
 import { createModels, type UserMessage } from "@earendil-works/pi-ai";
-import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
+import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
 import { SYSTEM_PROMPT } from "./prompt.ts";
 import { bashTool, readFileTool, writeFileTool } from "./tools.ts";
+
+// 从本包目录的 `.env` 读取环境变量(pi 本身不自动加载 .env)。
+// 不覆盖已在环境里设置的值。
+const demoDir = dirname(fileURLToPath(import.meta.url));
+const dotenvPath = join(demoDir, "..", ".env");
+try {
+	for (const line of readFileSync(dotenvPath, "utf8").split("\n")) {
+		const trimmed = line.trim();
+		if (!trimmed || trimmed.startsWith("#")) continue;
+		const eq = trimmed.indexOf("=");
+		if (eq === -1) continue;
+		const key = trimmed.slice(0, eq).trim();
+		const value = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+		if (key && process.env[key] === undefined) process.env[key] = value;
+	}
+} catch {
+	// .env 不存在时忽略(直接依赖真实环境变量)。
+}
 
 function streamer(agent: Agent): void {
 	agent.subscribe((event) => {
@@ -39,19 +61,15 @@ function streamer(agent: Agent): void {
 	});
 }
 
-function userMessage(text: string): UserMessage {
-	return { role: "user", content: text, timestamp: Date.now() };
-}
-
-export async function runRealDemo(messages: string[]): Promise<void> {
-	console.log("[1] Register a real provider (Anthropic)");
+async function main(): Promise<void> {
+	console.log("[1] Register a real provider (DeepSeek)");
 	const models = createModels();
-	models.setProvider(anthropicProvider());
+	models.setProvider(deepseekProvider());
 
-	const model = models.getModels("anthropic")[0];
+	const model = models.getModels("deepseek")[0];
 	if (!model) {
 		throw new Error(
-			"No Anthropic model found. Is @earendil-works/pi-ai/providers/anthropic importable? Set ANTHROPIC_API_KEY to authenticate.",
+			"No DeepSeek model found. Is @earendil-works/pi-ai/providers/deepseek importable? Set DEEPSEEK_API_KEY to authenticate.",
 		);
 	}
 	console.log(`    model: ${model.id} (provider "${model.provider}")\n`);
@@ -75,21 +93,54 @@ export async function runRealDemo(messages: string[]): Promise<void> {
 	});
 	streamer(agent);
 
-	for (const message of messages) {
-		console.log(`\n\x1b[1m>>> ${message}\x1b[0m`);
-		await agent.prompt(userMessage(message));
-	}
+	await chatLoop(agent);
+}
 
-	const lastAssistant = [...agent.state.messages].reverse().find((message) => message.role === "assistant");
-	if (lastAssistant?.role === "assistant") {
-		console.log(`\ntotal tokens: ${lastAssistant.usage?.totalTokens}`);
+// 交互式聊天循环:逐行读取用户输入,多轮对话状态累积在 agent.state.messages 中。
+// 输入 exit / quit 或按 Ctrl+D 退出。
+async function chatLoop(agent: Agent): Promise<void> {
+	const rl = createInterface({ input: process.stdin, output: process.stdout });
+	try {
+		console.log(
+			"\n交互模式:输入提示词后回车,agent 会回复(支持多轮);输入 exit 或按 Ctrl+D 退出\n",
+		);
+		for (;;) {
+			const line = await askLine(rl);
+			if (line === null) break; // Ctrl+D
+			const text = line.trim();
+			if (!text) continue;
+			if (/^(exit|quit|\/exit|\/quit)$/i.test(text)) break;
+			console.log(`\n\x1b[1m>>> ${text}\x1b[0m`);
+			rl.pause(); // agent 回复期间暂停读取 stdin,避免输入串行
+			try {
+				await agent.prompt({
+					role: "user",
+					content: text,
+					timestamp: Date.now(),
+				} satisfies UserMessage);
+			} finally {
+				rl.resume();
+			}
+			const lastAssistant = [...agent.state.messages]
+				.reverse()
+				.find((message) => message.role === "assistant");
+			if (lastAssistant?.role === "assistant" && lastAssistant.usage?.totalTokens !== undefined) {
+				console.log(`\n\x1b[90m[本轮 tokens: ${lastAssistant.usage.totalTokens}]\x1b[0m`);
+			}
+		}
+	} finally {
+		rl.close();
 	}
 }
 
-const defaultMessage = "List the files in the current directory with your tools, then summarize what you found.";
+function askLine(rl: Interface, label = "you> "): Promise<string | null> {
+	return new Promise((resolve) => {
+		rl.question(label, (answer) => resolve(answer));
+		rl.once("close", () => resolve(null)); // Ctrl+D
+	});
+}
 
-const args = process.argv.slice(2);
-runRealDemo(args.length > 0 ? args : [defaultMessage]).catch((error) => {
+main().catch((error) => {
 	console.error(error);
 	process.exitCode = 1;
 });

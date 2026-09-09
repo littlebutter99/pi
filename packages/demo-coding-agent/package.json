@@ -5,8 +5,7 @@
 	"type": "module",
 	"description": "A minimal coding agent built directly on @earendil-works/pi-ai and @earendil-works/pi-agent-core. Demo/teaching package.",
 	"scripts": {
-		"demo": "tsx src/index.ts",
-		"demo:real": "tsx src/cli.ts"
+		"dev": "tsx src/cli.ts"
 	},
 	"dependencies": {
 		"@earendil-works/pi-agent-core": "0.85.1",
