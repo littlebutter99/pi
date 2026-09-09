@@ -1,61 +1,55 @@
 # demo-coding-agent
 
-A minimal coding agent built directly on two packages — no other pi package
-involved:
+一个极简的 coding agent,直接构建在两个包之上——不涉及任何其他 pi 包:
 
-| package | role |
+| 包 | 作用 |
 |---|---|
-| `@earendil-works/pi-ai` | models, providers, the stream protocol to the LLM |
-| `@earendil-works/pi-agent-core` | the agent loop, tool execution, events, agent state |
+| `@earendil-works/pi-ai` | 模型、provider、与 LLM 之间的流式协议 |
+| `@earendil-works/pi-agent-core` | agent 循环、工具执行、事件、agent 状态 |
 
-This package exists to show *where* each feature lives, so you can build your
-own agent (not just a coding agent) on the same two packages.
+这个包存在的目的是展示每个功能**住在哪里**,让你能基于同样的两个包构建自己的 agent(而不只是 coding agent)。
 
-## Files
+## 文件
 
-- `src/index.ts` — demo driven by the **faux provider** (no API key, no
-  network; the "LLM" is a scripted function). Run: `npm run demo`.
-- `src/cli.ts` — the same agent with a **real provider** (Anthropic).
-  Run: `ANTHROPIC_API_KEY=sk-ant-... npm run demo:real "your prompt"`.
-- `src/tools.ts` — three `AgentTool`s: `read_file`, `write_file`, `bash`.
-- `src/prompt.ts` — the system prompt.
+- `src/index.ts` —— 由 **faux provider** 驱动的示例(无需 API key、无需网络;"LLM" 是一个脚本化函数)。运行:`npm run demo`。
+- `src/cli.ts` —— 使用**真实 provider**(Anthropic)的同一个 agent。运行:`ANTHROPIC_API_KEY=sk-ant-... npm run demo:real "your prompt"`。
+- `src/tools.ts` —— 三个 `AgentTool`:`read_file`、`write_file`、`bash`。
+- `src/prompt.ts` —— 系统提示词。
 
-## How a run works
+## 一次运行的流程
 
 ```
-your code                          pi-ai                          pi-agent-core
+你的代码                          pi-ai                          pi-agent-core
 ─────────────────────────────────────────────────────────────────────────────
-createModels()            →  Models (provider registry + auth)
-setProvider(provider())   →  registers a provider + its model catalog
-getModel()/getModels()    →  picks a Model
-new Agent({streamFn,      →  creates the agent
-           initialState})     state: model, systemPrompt, tools, messages
+createModels()            →  Models(provider 注册表 + 认证)
+setProvider(provider())   →  注册一个 provider 及其模型目录
+getModel()/getModels()    →  挑选一个 Model
+new Agent({streamFn,      →  创建 agent
+           initialState})     state: model、systemPrompt、tools、messages
 agent.prompt("...")            runAgentLoop:
-                               turn: LLM call (via streamFn → provider → API)
-                               tool calls → validated → beforeToolCall gate
-                               → execute() → toolResult back into transcript
-                               → next turn, until stop
+                               turn: LLM 调用(经 streamFn → provider → API)
+                               工具调用 → 校验 → beforeToolCall 闸门
+                               → execute() → 把 toolResult 放回 transcript
+                               → 下一轮,直到 stop
 agent.subscribe(events)   ←  agent_start / message_update / tool_execution_* /
-                               turn_end / agent_end (streaming UI)
+                               turn_end / agent_end(流式 UI)
 ```
 
-### 1. Models and providers (`pi-ai`)
+### 1. 模型与 provider(`pi-ai`)
 
-`Models` is a runtime collection of providers. A provider owns its model
-catalog, auth, and stream behavior. Built-in provider factories ship in
-`@earendil-works/pi-ai/providers/*`:
+`Models` 是 provider 的运行时集合。一个 provider 拥有自己的模型目录、认证和流式行为。内置 provider 工厂随 `@earendil-works/pi-ai/providers/*` 发布:
 
 ```ts
 import { createModels } from "@earendil-works/pi-ai";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 
 const models = createModels();
-models.setProvider(anthropicProvider()); // auth auto-resolves from ANTHROPIC_API_KEY
+models.setProvider(anthropicProvider()); // 认证自动从 ANTHROPIC_API_KEY 解析
 
-const model = models.getModel("anthropic", "claude-sonnet-4-6"); // or getModels(...)[0]
+const model = models.getModel("anthropic", "claude-sonnet-4-6"); // 或 getModels(...)[0]
 ```
 
-No API key? Use the faux provider for development:
+没有 API key?开发时用 faux provider:
 
 ```ts
 import { fauxProvider, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
@@ -68,32 +62,24 @@ faux.setResponses([
 ]);
 ```
 
-The faux provider speaks the exact stream protocol of a real provider, so the
-agent loop and your tools run unchanged.
+faux provider 使用与真实 provider 完全相同的流式协议,因此 agent 循环和你的工具可以原样运行。
 
-### 2. The bridge: `streamFn` (`pi-ai` → `pi-agent-core`)
+### 2. 桥梁:`streamFn`(`pi-ai` → `pi-agent-core`)
 
-`AgentOptions.streamFn` is the only place the agent core talks to the LLM:
+`AgentOptions.streamFn` 是 agent core 与 LLM 对话的唯一入口:
 
 ```ts
 const agent = new Agent({
-  streamFn: models.streamSimple.bind(models), // Models.streamSimple satisfies StreamFn
+  streamFn: models.streamSimple.bind(models), // Models.streamSimple 满足 StreamFn
   // ...
 });
 ```
 
-Contract: the stream function never throws; request/model/runtime failures
-are encoded in the returned event stream as an assistant message with
-`stopReason: "error" | "aborted"`. `pi-agent-core` converts its own
-`AgentMessage[]` transcript to pi-ai `Message[]` (filtering UI-only messages)
-right before every call.
+约定:stream 函数永不抛异常;请求/模型/运行时失败会以一条 `stopReason: "error" | "aborted"` 的 assistant 消息编码进返回的事件流。`pi-agent-core` 会在每次调用前,把自己的 `AgentMessage[]` transcript 转换为 pi-ai 的 `Message[]`(过滤掉仅用于 UI 的消息)。
 
-### 3. Tools (`pi-agent-core`)
+### 3. 工具(`pi-agent-core`)
 
-Each tool is a `AgentTool`: a TypeBox parameter schema + an `execute`
-function. Throwing an `Error` reports failure to the model; an `onUpdate`
-callback streams partial output; `executionMode: "sequential"` forces the
-tool to run alone even in a parallel batch.
+每个工具都是一个 `AgentTool`:一个 TypeBox 参数 schema 加一个 `execute` 函数。抛出 `Error` 会向模型报告失败;`onUpdate` 回调流式输出部分结果;`executionMode: "sequential"` 会强制该工具在并行批次中也单独执行。
 
 ```ts
 import { Type, type Static } from "typebox";
@@ -112,44 +98,34 @@ const readFileTool: AgentTool<typeof schema, { path: string }> = {
 };
 ```
 
-### 4. Hooks and control (`pi-agent-core`)
+### 4. 钩子与控制(`pi-agent-core`)
 
 ```ts
 const agent = new Agent({
   streamFn,
   initialState: { systemPrompt, model, tools: [bashTool] },
-  // gate / rewrite every tool call
+  // 对每次工具调用做闸门/改写
   beforeToolCall: async ({ toolCall }) =>
     dangerous(toolCall) ? { block: true, reason: "blocked" } : undefined,
   afterToolCall: async ({ result, isError }) => ({ details: { ...result.details } }),
 });
 
-agent.subscribe((event) => { /* render streaming UI from events */ });
+agent.subscribe((event) => { /* 用事件渲染流式 UI */ });
 agent.steer({ role: "user", content: "stop, do this instead", timestamp: Date.now() });
 agent.abort();
 ```
 
-`agent.state` exposes the live transcript, streaming message, pending tool
-calls, model, thinking level — replace `state.messages`/`state.tools` to
-rewind or change the agent at runtime.
+`agent.state` 暴露实时 transcript、流式消息、待处理的工具调用、模型、思考等级——替换 `state.messages`/`state.tools` 即可在运行时回退或改变 agent。
 
-## Developing
+## 开发
 
-This package runs from source via `tsx` and the repo-root tsconfig path
-mapping (`@earendil-works/pi-ai` → `packages/ai/src`, ...). After a root
-`npm install`, run:
+本包通过 `tsx` 从源码运行,并使用仓库根 tsconfig 的路径映射(`@earendil-works/pi-ai` → `packages/ai/src`,……)。执行根目录 `npm install` 后,运行:
 
 ```bash
-npm run demo        # faux provider, no key needed
-npm run demo:real   # requires ANTHROPIC_API_KEY
+npm run demo        # faux provider,无需 key
+npm run demo:real   # 需要 ANTHROPIC_API_KEY
 ```
 
-Note on `cli.ts` (the real-provider branch): its model catalog import
-(`@earendil-works/pi-ai/providers/anthropic`) depends on generated model data
-(`packages/ai/src/providers/data/*.json`) that the `pi-ai` build produces.
-When consuming the published npm package this data ships inside it, so this
-is a dev-repo-only caveat: generate it with `npm --prefix packages/ai run
-generate-models` before running `demo:real` from source.
+关于 `cli.ts`(真实 provider 分支)的说明:它的模型目录导入(`@earendil-works/pi-ai/providers/anthropic`)依赖 `pi-ai` 构建生成的模型数据(`packages/ai/src/providers/data/*.json`)。消费发布版 npm 包时这些数据已内置其中,所以这只是开发仓库特有的注意事项:从源码运行 `demo:real` 之前,先用 `npm --prefix packages/ai run generate-models` 生成它。
 
-`src/cli.ts` is excluded from this package's own `tsconfig.json` (it needs the
-generated data); it is still covered by the repo-root tsconfig.
+`src/cli.ts` 被排除在本包自己的 `tsconfig.json` 之外(它需要生成的数据);它仍由仓库根 tsconfig 覆盖。
