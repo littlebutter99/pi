@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import { Agent } from "@earendil-works/pi-agent-core";
 import { createModels, type UserMessage } from "@earendil-works/pi-ai";
 import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
-import { SYSTEM_PROMPT } from "./prompt.ts";
+import { buildSystemPrompt } from "./prompt.ts";
 import { bashTool, readFileTool, writeFileTool } from "./tools.ts";
 
 // 从本包目录的 `.env` 读取环境变量(pi 本身不自动加载 .env)。
@@ -39,6 +39,7 @@ try {
 	// .env 不存在时忽略(直接依赖真实环境变量)。
 }
 
+// 订阅 agent 事件,把思考/回复/工具执行等输出到 stdout
 function streamer(agent: Agent): void {
 	agent.subscribe((event) => {
 		switch (event.type) {
@@ -74,14 +75,15 @@ async function main(): Promise<void> {
 	}
 	console.log(`    model: ${model.id} (provider "${model.provider}")\n`);
 
+	const tools = [readFileTool, writeFileTool, bashTool];
 	console.log("[2] Create the Agent");
 	const agent = new Agent({
 		streamFn: models.streamSimple.bind(models),
 		initialState: {
-			systemPrompt: SYSTEM_PROMPT,
+			systemPrompt: buildSystemPrompt(process.cwd(), tools),
 			model,
 			thinkingLevel: "off",
-			tools: [readFileTool, writeFileTool, bashTool],
+			tools,
 		},
 		beforeToolCall: async ({ toolCall }) => {
 			const command = String(toolCall.arguments.command ?? "");
