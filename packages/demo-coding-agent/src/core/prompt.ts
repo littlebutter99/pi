@@ -88,13 +88,7 @@ function skillsBlock(): string {
  * skillsBlock() 的实现,不破坏其余段落顺序。
  */
 export function buildSystemPrompt(cwd: string, tools: AgentTool[]): string {
-	const sections = [
-		PERSONA,
-		toolsBlock(tools),
-		guidelinesBlock(),
-		projectContextBlock(cwd),
-		skillsBlock(),
-	];
+	const sections = [PERSONA, toolsBlock(tools), guidelinesBlock(), projectContextBlock(cwd), skillsBlock()];
 	const promptCwd = cwd.replace(/\\/g, "/");
 
 	// 空段(如暂无 AGENTS.md、skills 未接入)不产生空行噪声
