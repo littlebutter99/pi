@@ -19,7 +19,7 @@ import { Agent } from "@earendil-works/pi-agent-core";
 import { createModels, type UserMessage } from "@earendil-works/pi-ai";
 import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
 import { buildSystemPrompt } from "./prompt.ts";
-import { bashTool, readFileTool, writeFileTool } from "./tools.ts";
+import { defaultTools } from "./tools.ts";
 
 // 从本包目录的 `.env` 读取环境变量(pi 本身不自动加载 .env)。
 // 不覆盖已在环境里设置的值。
@@ -39,17 +39,33 @@ try {
 	// .env 不存在时忽略(直接依赖真实环境变量)。
 }
 
+// 跟踪思考区开/关,给推理与正文分区渲染。
+let thinkingActive = false;
+
 // 订阅 agent 事件,把思考/回复/工具执行等输出到 stdout
 function streamer(agent: Agent): void {
 	agent.subscribe((event) => {
 		switch (event.type) {
-			case "message_update":
-				if (event.assistantMessageEvent.type === "thinking_delta") {
-					process.stdout.write(`\x1b[90m${event.assistantMessageEvent.delta}\x1b[0m`);
-				} else if (event.assistantMessageEvent.type === "text_delta") {
-					process.stdout.write(event.assistantMessageEvent.delta);
+			case "message_update": {
+				const ev = event.assistantMessageEvent;
+				if (ev.type === "thinking_start") {
+					thinkingActive = true;
+					process.stdout.write("\n\x1b[33m[思考]\x1b[0m ");
+				} else if (ev.type === "thinking_delta") {
+					// 思考过程用灰色,和正文区分开
+					process.stdout.write(`\x1b[90m${ev.delta}\x1b[0m`);
+				} else if (ev.type === "thinking_end") {
+					process.stdout.write("\n");
+				} else if (ev.type === "text_start") {
+					if (thinkingActive) {
+						process.stdout.write("\n\x1b[1m正文:\x1b[0m ");
+						thinkingActive = false;
+					}
+				} else if (ev.type === "text_delta") {
+					process.stdout.write(ev.delta);
 				}
 				break;
+			}
 			case "tool_execution_start":
 				console.log(`\n\x1b[36m[tool] ${event.toolName}(${JSON.stringify(event.args)})\x1b[0m`);
 				break;
@@ -75,14 +91,16 @@ async function main(): Promise<void> {
 	}
 	console.log(`    model: ${model.id} (provider "${model.provider}")\n`);
 
-	const tools = [readFileTool, writeFileTool, bashTool];
+	const tools = defaultTools;
 	console.log("[2] Create the Agent");
 	const agent = new Agent({
 		streamFn: models.streamSimple.bind(models),
 		initialState: {
 			systemPrompt: buildSystemPrompt(process.cwd(), tools),
 			model,
-			thinkingLevel: "off",
+			// deepseek-v4-flash 的 thinkingLevelMap: low / high / max 可用,medium/minimal 为空。
+			// 这里开深思考档;若担心思考量吞完 max_tokens 导致无正文,可加 thinkingBudgets。
+			thinkingLevel: "high",
 			tools,
 		},
 		beforeToolCall: async ({ toolCall }) => {

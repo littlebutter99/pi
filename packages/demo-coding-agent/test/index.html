@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K. — 个人品牌</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ---------- 基础与变量 ---------- */
+  :root {
+    --bg: #0a0a0a;
+    --gold: #d4a574;
+    --gray: #a0a0a0;
+    --text: #e8e8e8;
+    --muted: #6a6a6a;
+    --card-bg: #131313;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", -apple-system, sans-serif;
+    line-height: 1.6;
+    /* 页面加载 Fade-in */
+    animation: fadeIn 0.9s ease both;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  a { text-decoration: none; color: inherit; }
+  .mono { font-family: "JetBrains Mono", monospace; }
+
+  /* ---------- 布局容器 ---------- */
+  .container {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ---------- 导航栏 ---------- */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(160, 160, 160, 0.12);
+  }
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 68px;
+  }
+  .logo {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    color: var(--gold);
+  }
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+  .nav-links a {
+    font-size: 14px;
+    color: var(--gray);
+    transition: color 0.25s ease;
+  }
+  .nav-links a:hover { color: var(--gold); }
+
+  /* ---------- 英雄区 ---------- */
+  .hero {
+    min-height: calc(100vh - 68px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 0;
+  }
+  .hero .eyebrow {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    color: var(--gold);
+    margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-size: clamp(44px, 8vw, 84px);
+    font-weight: 700;
+    letter-spacing: -2px;
+    line-height: 1.1;
+  }
+  .hero h1 .dot { color: var(--gold); }
+  .hero .sub {
+    margin-top: 24px;
+    font-size: clamp(16px, 2vw, 20px);
+    color: var(--gray);
+    max-width: 520px;
+  }
+  .btn {
+    display: inline-block;
+    margin-top: 40px;
+    width: fit-content;
+    padding: 14px 36px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--bg);
+    background: var(--gold);
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px rgba(212, 165, 116, 0.25);
+  }
+  .btn.ghost {
+    background: transparent;
+    color: var(--gold);
+    border: 1px solid var(--gold);
+  }
+  .btn.ghost:hover {
+    box-shadow: 0 12px 30px rgba(212, 165, 116, 0.15);
+  }
+
+  /* ---------- 区块标题 ---------- */
+  .section {
+    padding: 100px 0;
+  }
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 48px;
+  }
+  .section-header h2 {
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 700;
+    letter-spacing: -1px;
+  }
+  .section-header .index {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  /* ---------- 作品展示区 ---------- */
+  .works-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 28px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid rgba(160, 160, 160, 0.12);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  }
+  .card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+    border-color: rgba(212, 165, 116, 0.4);
+  }
+  .card-cover {
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* 3 张不同配色的渐变占位 */
+  .cover-1 { background: linear-gradient(135deg, #2b2b2b, #d4a574); }
+  .cover-2 { background: linear-gradient(135deg, #1a1a1a, #7a5c43); }
+  .cover-3 { background: linear-gradient(135deg, #333333, #555555); }
+  .card-cover .mono {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 13px;
+    letter-spacing: 2px;
+  }
+  .card-body { padding: 22px 24px 26px; }
+  .card-body h3 { font-size: 18px; font-weight: 600; }
+  .card-body .tag {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  .card-link {
+    display: inline-block;
+    margin-top: 16px;
+    font-size: 14px;
+    color: var(--gold);
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.25s ease;
+  }
+  .card-link:hover { border-bottom-color: var(--gold); }
+
+  /* ---------- 关于 ---------- */
+  .about-text {
+    max-width: 640px;
+    font-size: 17px;
+    color: var(--gray);
+  }
+  .about-text strong { color: var(--text); font-weight: 600; }
+  .about-contact {
+    margin-top: 32px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  /* ---------- 底部 ---------- */
+  footer {
+    border-top: 1px solid rgba(160, 160, 160, 0.12);
+    padding: 36px 0;
+  }
+  .footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .footer-inner p { font-size: 13px; color: var(--muted); }
+  .socials { display: flex; gap: 18px; }
+  .socials a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(160, 160, 160, 0.25);
+    border-radius: 50%;
+    transition: border-color 0.25s ease, transform 0.25s ease;
+  }
+  .socials a:hover {
+    border-color: var(--gold);
+    transform: translateY(-3px);
+  }
+  .socials svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--gray);
+    transition: fill 0.25s ease;
+  }
+  .socials a:hover svg { fill: var(--gold); }
+
+  /* ---------- 响应式 ---------- */
+  @media (max-width: 640px) {
+    .nav-links { gap: 20px; }
+    .footer-inner { justify-content: center; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- 导航栏 -->
+  <nav>
+    <div class="container nav-inner">
+      <a href="#top" class="logo">K.</a>
+      <ul class="nav-links">
+        <li><a href="#works">作品</a></li>
+        <li><a href="#about">关于</a></li>
+        <li><a href="#about" id="nav-contact" class="js-contact">即刻</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- 英雄区 -->
+  <header class="container hero" id="top">
+    <div class="eyebrow">&lt;hello_world /&gt;</div>
+    <h1>Hi, I'm <span class="dot">K.</span></h1>
+    <p class="sub">专注于交互体验与视觉传达，用克制的设计与细腻的动效，为品牌塑造安静而有质感的数字形象。</p>
+    <a href="#works" class="btn">查看作品</a>
+  </header>
+
+  <!-- 作品展示区 -->
+  <main>
+    <section class="container section" id="works">
+      <div class="section-header">
+        <h2>精选作品</h2>
+        <span class="index mono">01 / 03</span>
+      </div>
+      <div class="works-grid">
+        <article class="card">
+          <div class="card-cover cover-1"><span class="mono">/project-01</span></div>
+          <div class="card-body">
+            <h3>深色珠宝品牌站</h3>
+            <p class="tag mono">Brand · Web Design</p>
+            <a href="#" class="card-link">查看案例 →</a>
+          </div>
+        </article>
+        <article class="card">
+          <div class="card-cover cover-2"><span class="mono">/project-02</span></div>
+          <div class="card-body">
+            <h3>精品咖啡线上店</h3>
+            <p class="tag mono">E-commerce · UI</p>
+            <a href="#" class="card-link">查看案例 →</a>
+          </div>
+        </article>
+        <article class="card">
+          <div class="card-cover cover-3"><span class="mono">/project-03</span></div>
+          <div class="card-body">
+            <h3>建筑师个人工作室</h3>
+            <p class="tag mono">Portfolio · Art Direction</p>
+            <a href="#" class="card-link">查看案例 →</a>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- 关于 -->
+    <section class="container section" id="about">
+      <div class="section-header">
+        <h2>关于我</h2>
+        <span class="index mono">02 / 02</span>
+      </div>
+      <p class="about-text">
+        我是 <strong>K.</strong>，一名资深前端设计师。我相信好的设计不是堆砌，而是
+        <strong>取舍</strong>。我擅长将品牌气质转化为克制的界面语言，并为每一次交互注入恰到好处的动效。
+      </p>
+      <button class="btn ghost js-contact" id="footer-contact">即刻联系</button>
+      <p class="about-contact">// 目前开放自由合作 — hello@mysite.com</p>
+    </section>
+  </main>
+
+  <!-- 底部 -->
+  <footer>
+    <div class="container footer-inner">
+      <p class="mono">© 2025 K. — Crafted with care.</p>
+      <div class="socials">
+        <a href="https://twitter.com/" target="_blank" rel="noopener" aria-label="Twitter">
+          <svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        </a>
+        <a href="https://github.com/" target="_blank" rel="noopener" aria-label="GitHub">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // 「即刻」与底部联系按钮 → 弹出提示
+    function showContact() {
+      alert("欢迎联系，邮箱：hello@mysite.com");
+    }
+    const contactEls = document.querySelectorAll(".js-contact");
+    contactEls.forEach(function (el) {
+      el.addEventListener("click", function (e) {
+        e.preventDefault(); // 阻止「即刻」的默认锚点跳转，仅弹提示
+        showContact();
+      });
+    });
+  </script>
+</body>
+</html>
