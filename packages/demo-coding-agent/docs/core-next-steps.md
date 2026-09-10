@@ -84,6 +84,8 @@ process.on("SIGINT", onSigint);
 
 **难点**:压缩管线是 harness 层结构(`Entry[]` / `Context`),demo 走的是高层 `Agent` API + `agent.state.messages`,中间需要一层适配。可参考 `packages/coding-agent` 的接法。
 
+> 完整落地计划(五级压缩级联 + 热/冷提醒 + 预算反压)见 [`context-management-plan.md`](./context-management-plan.md),本条目是其简版。
+
 **验证**:开一个超长会话(或调低阈值),确认触发压缩、摘要进上下文、后续轮次照常。
 
 ## 做完三件后:跑一个真实任务再定下一步
