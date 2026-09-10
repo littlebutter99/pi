@@ -8,7 +8,7 @@
 - 交互式多轮 REPL,`read` / `bash` / `edit` / `write` 四个工具,`agent.prompt()` 逐轮推进。
 - 已删:P1 的 steer/follow-up 队列、token 统计(纯观测,不影响行为)。
 - 已接通的核心管线:`signal` → 工具中止(`bashTool` 的 `execute` 已监听 abort 杀子进程)、`beforeToolCall` 安全门。
-- 未做且致命:read 静默截断/越界、没有上下文压缩。
+- 未做且致命:没有上下文压缩。
 
 ## 优先级一:中止(已完成)`src/ui/repl.ts`
 
@@ -40,25 +40,28 @@ process.on("SIGINT", onSigint);
 - `sleep 45` 工具调用运行中 Ctrl+C → 中止提示 1 秒内出现、进程存活、会话继续下一轮、**无孤儿 sleep 进程**(说明 `bashTool` 的 abort 监听从信号到杀子进程整条链都通了);
 - 管道输入 → 正常。(测试坑:裸 pty 无前台进程组,VINTR 发不出信号;`script` + `trap '' INT` 会让 node 拒绝安装 SIGINT 的 JS handler——这两种都是测试壳子问题,真终端不受影响。)
 
-## 优先级二:read 工具契约修正(半天,~15 行)
+## 优先级二:read 工具契约修正(已完成)`src/core/tools.ts`
 
-**为什么**:模型的所有 `edit` 都基于 read 给它的文本。现在截断无告知、越界返回空串,模型会拿着错误认知去改文件,改坏自己还看不出来。
+**两条规则**(文案对齐 `packages/coding-agent/src/core/tools/read.ts`):
 
-**方案**(参照 `packages/coding-agent/src/core/tools/read.ts`)两条规则:
-
-1. **截断/行数写进 `content` 文本**,不是 `details`(模型看不到 details,序列化只走 content,见 `packages/ai/src/api/openai-completions.ts:1393`):
+1. **截断/行数写进 content 文本**,不是 details(模型看不到 details,序列化只走 content,见 `packages/ai/src/api/openai-completions.ts:1393`):
 
    ```
-   [Showing lines 1-200 of 843. Use offset=201 to continue.]
+   line5
+   line6
+
+   [4 more lines in file. Use offset=7 to continue.]
    ```
 
 2. **越界抛错**(`execute` 约定是 "Throw on failure",抛出去模型能收到并自我纠正):
 
    ```
-   Error: Offset 999 is beyond end of file (843 lines total)
+   Error: Offset 99 is beyond end of file (10 lines total)
    ```
 
-**验证**:读大文件不带 limit,确认文本带截断提示;offset 出界,确认报错而非空串。
+**顺带修的一处(coding-agent 也有,没修)**:文件以 `\n` 结尾时 `content.split("\n")` 末尾会多一个空元素,直接拿 `length` 当行数会把 10 行报成 11、"N more lines" 多算一条。行数统计用 `content.endsWith("\n")` 判断后减一,但**切片仍用原始 split**——join 回来与文件逐字节一致,read → edit/write 的精确匹配契约不受影响。
+
+**验证**(直调用 `readTool.execute`,确定性断言,无模型参与):全量读字节保真且 totalLines=10;offset=5+limit=2 返回 `[4 more lines in file. Use offset=7 to continue.]`;读到末尾无提示;offset=99 抛 `Offset 99 is beyond end of file (10 lines total)`;空文件/单换行文件正常。端到端:让模型读 `tools.ts` 结尾 3 行,能准确报出真实行号。
 
 ## 优先级三:上下文压缩(真正的核心,工作量最大)
 

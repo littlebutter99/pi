@@ -21,7 +21,10 @@ const readSchema = Type.Object({
 	limit: Type.Optional(Type.Number({ description: "Maximum number of lines to read" })),
 });
 
-// 读取文件,把内容放进 transcript 供模型查看
+// 读取文件,把内容放进 transcript 供模型查看。
+// 契约(与 coding-agent 对齐):
+// - 越界 offset 抛错,不给空串——否则模型会把"读多了"误读成"文件是空的";
+// - limit 截断时把剩余行数写进 content 文本(模型看得到的正文,不是 details),提示继续翻页。
 export const readTool: AgentTool<typeof readSchema> = {
 	name: "read",
 	label: "read",
@@ -30,10 +33,28 @@ export const readTool: AgentTool<typeof readSchema> = {
 	parameters: readSchema,
 	execute: async (_id, { path, offset, limit }) => {
 		const content = await readFile(path, "utf-8");
-		const lines = content.split("\n");
+		// 切片用原始 split(join 回来与文件逐字节一致);行数统计去掉
+		// 末尾幻影空元素(文件以 \n 结尾时 split 会多出一个),否则 10 行
+		// 文件会报 11 行、"N more lines" 也会多算一条。
+		const allLines = content.split("\n");
+		const totalLines = content.endsWith("\n") ? allLines.length - 1 : allLines.length;
 		const start = offset ? Math.max(0, offset - 1) : 0;
-		const selected = limit === undefined ? lines.slice(start) : lines.slice(start, start + limit);
-		return result(selected.join("\n"), { path, totalLines: lines.length });
+		if (start >= totalLines) {
+			throw new Error(`Offset ${offset} is beyond end of file (${totalLines} lines total)`);
+		}
+		let text: string;
+		if (limit !== undefined) {
+			const end = Math.min(start + limit, totalLines);
+			text = allLines.slice(start, end).join("\n");
+			if (end < totalLines) {
+				const nextOffset = end + 1;
+				const remaining = totalLines - end;
+				text += `\n\n[${remaining} more lines in file. Use offset=${nextOffset} to continue.]`;
+			}
+		} else {
+			text = allLines.slice(start).join("\n");
+		}
+		return result(text, { path, totalLines });
 	},
 };
 
