@@ -7,7 +7,7 @@
  *   - core/prompt.ts          系统提示词分节生成(含 AGENTS.md)
  *   - core/tools.ts           内置工具 read/bash/edit/write
  *   - ui/streamer.ts          把 agent 事件渲染到 stdout
- *   - ui/repl.ts              交互式聊天循环(输入/退出/tokens 统计)
+ *   - ui/repl.ts              交互式聊天循环(读输入 / 退出)
  *
  * 想加新的 slash 命令或工具时,应改 ui/repl 或 core/tools,而不是在这份入口里堆代码。
  */
@@ -18,6 +18,8 @@ import { chatLoop } from "./ui/repl.ts";
 import { attachStreamer } from "./ui/streamer.ts";
 
 async function main(): Promise<void> {
+	console.log("\n=== demo-coding-agent ===\n");
+	console.log("[0] Load .env (if exists) and set environment variables");
 	loadDotenv();
 
 	console.log("[1] Register a real provider (DeepSeek)");

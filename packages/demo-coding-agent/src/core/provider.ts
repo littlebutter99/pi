@@ -1,32 +1,33 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import { createModels, type Model, type Models } from "@earendil-works/pi-ai";
 import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
 
 /**
- * 从本包目录的 `.env` 读取环境变量(pi 本身不自动加载 .env)。不覆盖已在环境里设置的值。
- * 无 `.env` 时忽略(直接依赖真实环境变量)。
+ * 从当前工作目录的 `.env` 读取环境变量(pi 本身不自动加载 .env)。不覆盖已在环境里设置的值。
+ * 文件不存在时提示一行后继续,直接依赖真实环境变量。
  */
 export function loadDotenv(): void {
-	const demoDir = dirname(fileURLToPath(import.meta.url)); // src/core/provider.ts → 包根上一层才是 .env
-	const dotenvPath = join(demoDir, "..", "..", ".env");
+	const dotenvPath = join(process.cwd(), ".env");
+	let content: string;
 	try {
-		for (const line of readFileSync(dotenvPath, "utf8").split("\n")) {
-			const trimmed = line.trim();
-			if (!trimmed || trimmed.startsWith("#")) continue;
-			const eq = trimmed.indexOf("=");
-			if (eq === -1) continue;
-			const key = trimmed.slice(0, eq).trim();
-			const value = trimmed
-				.slice(eq + 1)
-				.trim()
-				.replace(/^["']|["']$/g, "");
-			if (key && process.env[key] === undefined) process.env[key] = value;
-		}
+		content = readFileSync(dotenvPath, "utf8");
 	} catch {
-		// .env 不存在时忽略
+		console.log(`[env] 未找到 ${dotenvPath},使用已有环境变量`);
+		return;
+	}
+	for (const line of content.split("\n")) {
+		const trimmed = line.trim();
+		if (!trimmed || trimmed.startsWith("#")) continue;
+		const eq = trimmed.indexOf("=");
+		if (eq === -1) continue;
+		const key = trimmed.slice(0, eq).trim();
+		const value = trimmed
+			.slice(eq + 1)
+			.trim()
+			.replace(/^["']|["']$/g, "");
+		if (key && process.env[key] === undefined) process.env[key] = value;
 	}
 }
 
